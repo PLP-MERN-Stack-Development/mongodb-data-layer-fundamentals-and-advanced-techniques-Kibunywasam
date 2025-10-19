@@ -1,17 +1,21 @@
-// insert_books.js - Script to populate MongoDB with sample book data
 
-// Import MongoDB client
+// Script to populate the 'plp_bookstore' database with sample book data using Node.js and MongoDB Driver
+
+require('dotenv').config();
+
 const { MongoClient } = require('mongodb');
 
-// Connection URI (replace with your MongoDB connection string if using Atlas)
-const uri = 'mongodb://localhost:27017';
+// Configuration
+const CONFIG = {
+  // Use environment variable for connection string in real apps
+  MONGODB_ATLAS_URI: process.env.MONGODB_ATLAS_URI,
+  DB_NAME: 'plp_bookstore',
+  COLLECTION_NAME: 'books',
+  DROP_ON_RELOAD: true,
+};
 
-// Database and collection names
-const dbName = 'plp_bookstore';
-const collectionName = 'books';
-
-// Sample book data
-const books = [
+//  Sample book data 
+const SAMPLE_BOOKS = [
   {
     title: 'To Kill a Mockingbird',
     author: 'Harper Lee',
@@ -134,65 +138,53 @@ const books = [
   }
 ];
 
-// Function to insert books into MongoDB
+// Inserts sample book data into MongoDB
+ 
 async function insertBooks() {
-  const client = new MongoClient(uri);
+  const client = new MongoClient(CONFIG.MONGODB_ATLAS_URI);
 
   try {
-    // Connect to the MongoDB server
+    console.log(' Connecting to MongoDB...');
     await client.connect();
-    console.log('Connected to MongoDB server');
 
-    // Get database and collection
-    const db = client.db(dbName);
-    const collection = db.collection(collectionName);
+    const db = client.db(CONFIG.DB_NAME);
+    const collection = db.collection(CONFIG.COLLECTION_NAME);
 
-    // Check if collection already has documents
-    const count = await collection.countDocuments();
-    if (count > 0) {
-      console.log(`Collection already contains ${count} documents. Dropping collection...`);
-      await collection.drop();
-      console.log('Collection dropped successfully');
+    // Optional: Clear existing data to ensure clean state
+    if (CONFIG.DROP_ON_RELOAD) {
+      const docCount = await collection.countDocuments();
+      if (docCount > 0) {
+        console.log(`  Dropping existing '${CONFIG.COLLECTION_NAME}' collection (${docCount} documents)...`);
+        await collection.drop();
+      }
     }
 
-    // Insert the books
-    const result = await collection.insertMany(books);
-    console.log(`${result.insertedCount} books were successfully inserted into the database`);
+    // Insert sample books
+    console.log('Inserting sample books...');
+    const result = await collection.insertMany(SAMPLE_BOOKS, { ordered: true });
 
-    // Display the inserted books
-    console.log('\nInserted books:');
-    const insertedBooks = await collection.find({}).toArray();
-    insertedBooks.forEach((book, index) => {
-      console.log(`${index + 1}. "${book.title}" by ${book.author} (${book.published_year})`);
+    console.log(` Successfully inserted ${result.insertedCount} books into '${CONFIG.DB_NAME}.${CONFIG.COLLECTION_NAME}'`);
+
+    //  Log a preview of inserted data
+    const preview = await collection.find().limit(3).toArray();
+    console.log('\n Preview of inserted books:');
+    preview.forEach((book, i) => {
+      console.log(`  ${i + 1}. "${book.title}" by ${book.author} — $${book.price} (${book.in_stock ? 'In Stock' : 'Out of Stock'})`);
     });
 
-  } catch (err) {
-    console.error('Error occurred:', err);
+  } catch (error) {
+    console.error(' Failed to insert books:', error);
+    process.exit(1); // Exit with error code for CI/script reliability
   } finally {
-    // Close the connection
     await client.close();
-    console.log('Connection closed');
+    console.log(' MongoDB connection closed.');
   }
 }
 
-// Run the function
-insertBooks().catch(console.error);
+// Run the script if called directly
+if (require.main === module) {
+  insertBooks();
+}
 
-/*
- * Example MongoDB queries you can try after running this script:
- *
- * 1. Find all books:
- *    db.books.find()
- *
- * 2. Find books by a specific author:
- *    db.books.find({ author: "George Orwell" })
- *
- * 3. Find books published after 1950:
- *    db.books.find({ published_year: { $gt: 1950 } })
- *
- * 4. Find books in a specific genre:
- *    db.books.find({ genre: "Fiction" })
- *
- * 5. Find in-stock books:
- *    db.books.find({ in_stock: true })
- */ 
+// Export for testing or reuse (optional but good practice)
+module.exports = { insertBooks, SAMPLE_BOOKS, CONFIG };
